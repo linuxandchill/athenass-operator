@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="athenass-session" content="__ATHENA_SESSION_TOKEN__" />
+    <link rel="stylesheet" href="/styles.css?v=4" />
+    <title>AthenaSS Operator (A77)</title>
+    <script type="module" src="/app.js?v=4" defer></script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">AthenaSS (A77)</p>
+        <h1>Operator</h1>
+      </div>
+      <span id="session-badge" class="badge">Checking session…</span>
+    </header>
+
+    <main>
+      <section class="card">
+        <div class="heading">
+          <div><p class="step">1 · ACCOUNT</p><h2>Connect AthenaSS</h2></div>
+          <button id="login-button" class="secondary">Sign in</button>
+        </div>
+        <p class="muted">Sign in through AthenaSS. Credentials remain in your local operator configuration.</p>
+        <div id="login-code" class="login-code hidden"></div>
+      </section>
+
+      <section class="card">
+        <div class="heading">
+          <div><p class="step">2 · NODE</p><h2>Configure this machine</h2></div>
+        </div>
+        <form id="node-form">
+          <label>Node name<input id="node-name" required placeholder="home-gpu" autocomplete="off" /></label>
+          <label>Model ID<input id="model-id" required placeholder="Qwen/Qwen3-8B" autocomplete="off" /></label>
+          <label>Port<input id="port" required type="number" min="1" max="65535" value="8000" /></label>
+          <label class="wide">Launch command<textarea id="command" required rows="3" placeholder="vllm serve Qwen/Qwen3-8B --host 127.0.0.1 --port 8000"></textarea></label>
+          <p class="wide command-note">Runs exactly as entered under your local user account. The engine must expose <code>GET /v1/models</code> on <code>127.0.0.1</code>.</p>
+          <label class="wide">Machine details (JSON)
+            <span class="field-help">Required · shown to renters. Enter one valid JSON object with any fields useful for comparing this machine and its inference setup.</span>
+            <textarea id="machine-details" maxlength="16000" rows="8" required spellcheck="false" placeholder='{"gpu":"RTX 4090 24 GB","cpu":"Intel Core i9-14900K","memory":"64 GB","operating_system":"Ubuntu 24.04","engine":"ExLlamaV3","context":"190K"}'></textarea>
+          </label>
+          <button id="register-button" type="submit">Register node</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="heading">
+          <div><p class="step">3 · SERVICE</p><h2>Run this node</h2></div>
+          <span id="node-status" class="status idle"><i></i> Idle</span>
+        </div>
+        <div id="configured-node" class="configured muted">No node configured locally.</div>
+        <div class="actions">
+          <button id="start-button" disabled>Start node</button>
+          <button id="stop-button" class="danger" disabled>Stop</button>
+          <button id="refresh-button" class="secondary">Refresh list</button>
+        </div>
+        <pre id="logs" aria-live="polite">Operator logs will appear here.</pre>
+      </section>
+
+      <section class="card">
+        <div class="heading"><div><p class="step">AthenaSS SERVICE</p><h2>Registered nodes</h2></div></div>
+        <div id="node-list" class="node-list muted">Sign in to load registered nodes.</div>
+      </section>
+    </main>
+
+    <p id="notice" class="notice hidden" role="status"></p>
+  </body>
+</html>
