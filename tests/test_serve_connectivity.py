@@ -16,6 +16,7 @@ class FakeProcess:
     def __init__(self, name: str, events: list[str]) -> None:
         self.name = name
         self.events = events
+        self.pid = 5252
         self.running = True
 
     def poll(self):
@@ -65,6 +66,7 @@ class ServeConnectivityTests(unittest.TestCase):
         config: dict,
         *,
         proxy_port: int = 8931,
+        offline_heartbeat_error: bool = False,
     ) -> list[str]:
         events: list[str] = []
         inference = FakeProcess("inference", events)
@@ -80,6 +82,8 @@ class ServeConnectivityTests(unittest.TestCase):
 
             def heartbeat(_token, _cfg, status="available") -> None:
                 events.append(f"heartbeat:{status}")
+                if status == "offline" and offline_heartbeat_error:
+                    raise RuntimeError("offline heartbeat failed")
 
             def wait_with_heartbeat(*_args) -> None:
                 events.append("wait")
@@ -100,6 +104,11 @@ class ServeConnectivityTests(unittest.TestCase):
                 patch.object(cli, "SERVE_PID_PATH", pid_path),
                 patch.object(cli.signal, "signal"),
                 patch.object(cli.subprocess, "Popen", return_value=inference) as popen,
+                patch.object(
+                    cli.os,
+                    "killpg",
+                    side_effect=lambda *_: inference.terminate(),
+                ),
                 patch.object(cli, "_wait_for_health", side_effect=lambda *_: events.append("healthy")),
                 patch.object(
                     cli,
@@ -110,11 +119,19 @@ class ServeConnectivityTests(unittest.TestCase):
                 patch.object(cli, "_wait_with_heartbeat", side_effect=wait_with_heartbeat),
                 patch.object(cli, "NgrokConnectivity", side_effect=build_connectivity) as ngrok_connectivity,
             ):
-                cli.serve(
-                    local=False,
-                    timeout=1,
-                    usage_proxy_port=proxy_port,
-                )
+                if offline_heartbeat_error:
+                    with self.assertRaisesRegex(RuntimeError, "offline heartbeat failed"):
+                        cli.serve(
+                            local=False,
+                            timeout=1,
+                            usage_proxy_port=proxy_port,
+                        )
+                else:
+                    cli.serve(
+                        local=False,
+                        timeout=1,
+                        usage_proxy_port=proxy_port,
+                    )
 
             start_proxy.assert_called_once_with(
                 "http://127.0.0.1:8000",
@@ -162,6 +179,35 @@ class ServeConnectivityTests(unittest.TestCase):
             ],
         )
 
+    def test_cleanup_runs_when_offline_heartbeat_fails(self) -> None:
+        events = self._run_serve(
+            {
+                "command": "inference-command",
+                "endpoint": "http://127.0.0.1:8000",
+                "model_id": "model",
+                "node_id": "node-id",
+                "access_token": "node-secret",
+                "connectivity": {
+                    "internal_endpoint": "https://node-routing.internal",
+                    "public_endpoint": "https://routing.nodes.athenass.com",
+                    "agent_authtoken": "agent-secret",
+                },
+            },
+            offline_heartbeat_error=True,
+        )
+
+        self.assertEqual(
+            events[-6:],
+            [
+                "heartbeat:offline",
+                "stop:ngrok",
+                "stop:proxy",
+                "close:proxy",
+                "stop:inference",
+                "wait:inference",
+            ],
+        )
+
     def test_heartbeat_reports_public_runtime_specs(self) -> None:
         config = {
             "command": "llama-server --model model.gguf",
@@ -181,6 +227,7 @@ class ServeConnectivityTests(unittest.TestCase):
                 "machine_info": config["machine_info"],
             },
             bearer="node-secret",
+            no_exit=True,
         )
 
     def test_legacy_cloudflare_config_is_rejected(self) -> None:

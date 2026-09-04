@@ -2,11 +2,13 @@ import json
 import signal
 import socket
 import subprocess
+import tempfile
 import threading
 import time
 import unittest
 import urllib.error
 import urllib.request
+from pathlib import Path
 from unittest.mock import patch
 
 import uvicorn
@@ -78,6 +80,48 @@ class LocalhostOperatorWebTests(unittest.TestCase):
             manager.start()
 
         popen.assert_not_called()
+
+    def test_process_manager_recovers_persisted_worker_status(self) -> None:
+        manager = webapp.NodeProcessManager()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pid_path = Path(temp_dir) / "serve.pid"
+            pid_path.write_text("4242")
+            with (
+                patch.object(webapp, "SERVE_PID_PATH", pid_path),
+                patch.object(manager, "_pid_alive", return_value=True),
+            ):
+                status = manager.status()
+
+        self.assertEqual(
+            status,
+            {"running": True, "pid": 4242, "last_exit_code": None},
+        )
+
+    def test_process_manager_stops_persisted_worker(self) -> None:
+        manager = webapp.NodeProcessManager()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pid_path = Path(temp_dir) / "serve.pid"
+            inference_path = pid_path.with_name("inference.pid")
+            pid_path.write_text("4242")
+            inference_path.write_text("5252")
+
+            def stop_worker(_pid: int, _signal: int) -> None:
+                pid_path.unlink(missing_ok=True)
+                inference_path.unlink(missing_ok=True)
+
+            with (
+                patch.object(webapp, "SERVE_PID_PATH", pid_path),
+                patch.object(
+                    manager,
+                    "_pid_alive",
+                    side_effect=[True, False, False],
+                ),
+                patch.object(webapp.os, "kill", side_effect=stop_worker) as kill,
+            ):
+                status = manager.stop()
+
+        self.assertFalse(status["running"])
+        kill.assert_called_once_with(4242, signal.SIGTERM)
 
     def test_machine_details_are_forwarded_for_registration(self) -> None:
         machine_info = {

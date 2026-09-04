@@ -501,6 +501,7 @@ def serve(
     typer.echo("\nStarting inference server...")
     inference_proc = _launch_inference(command)
     _write_serve_pid()
+    SERVE_PID_PATH.with_name("inference.pid").write_text(str(inference_proc.pid))
 
     usage_proxy: http.server.ThreadingHTTPServer | None = None
 
@@ -543,13 +544,18 @@ def serve(
         typer.echo("\nShutting down...")
     finally:
         typer.echo("Marking node offline...")
-        _heartbeat(token, cfg, status="offline")
-        _cleanup(
-            inference_proc,
-            connectivity_session if not local else None,
-            usage_proxy,
-        )
-        _remove_serve_pid()
+        try:
+            _heartbeat(token, cfg, status="offline")
+        finally:
+            try:
+                _cleanup(
+                    inference_proc,
+                    connectivity_session if not local else None,
+                    usage_proxy,
+                )
+            finally:
+                SERVE_PID_PATH.with_name("inference.pid").unlink(missing_ok=True)
+                _remove_serve_pid()
 # ═══════════════════════════════════════════════════════════════════════════════
 # Credential helpers
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -695,10 +701,12 @@ def _heartbeat(token: str, cfg: dict[str, Any], status: str = "available") -> No
     if cfg.get("context_length"):
         body["context_length"] = cfg["context_length"]
 
-    try:
-        _api_post(f"{API_BASE}/v1/nodes/heartbeat", body, bearer=token)
-    except SystemExit:
-        pass  # _api_post already printed the error
+    _api_post(
+        f"{API_BASE}/v1/nodes/heartbeat",
+        body,
+        bearer=token,
+        no_exit=True,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

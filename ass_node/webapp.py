@@ -11,9 +11,11 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 from collections import deque
 from importlib.resources import files
+from pathlib import Path
 from typing import Annotated, Any
 
 import uvicorn
@@ -21,6 +23,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from ass_node.cli import SERVE_PID_PATH
 from ass_node.operator_service import (
     OperatorError,
     begin_login,
@@ -67,7 +70,7 @@ class NodeDeleteRequest(BaseModel):
 
 
 class NodeProcessManager:
-    """Owns the node worker process and a bounded in-memory log stream."""
+    """Tracks the node worker process and its bounded local log stream."""
 
     def __init__(self, max_log_lines: int = 2000) -> None:
         self._lock = threading.RLock()
@@ -81,9 +84,53 @@ class NodeProcessManager:
             self._logs.append((self._next_log_id, line.rstrip("\n")))
             self._next_log_id += 1
 
+    @staticmethod
+    def _pid_alive(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
+    def _persisted_pid(self, path: Path | None = None) -> int | None:
+        path = path or SERVE_PID_PATH
+        try:
+            pid = int(path.read_text().strip())
+        except (FileNotFoundError, OSError, ValueError):
+            return None
+        if self._pid_alive(pid):
+            return pid
+        path.unlink(missing_ok=True)
+        return None
+
+    def _stop_persisted_inference(self) -> None:
+        path = SERVE_PID_PATH.with_name("inference.pid")
+        pid = self._persisted_pid(path)
+        if pid is None:
+            return
+        try:
+            if os.name == "nt":
+                os.kill(pid, signal.SIGTERM)
+            else:
+                os.killpg(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            path.unlink(missing_ok=True)
+            return
+        deadline = time.monotonic() + 5
+        while self._pid_alive(pid) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        if self._pid_alive(pid):
+            if os.name == "nt":
+                os.kill(pid, signal.SIGKILL)
+            else:
+                os.killpg(pid, signal.SIGKILL)
+        path.unlink(missing_ok=True)
+
     def start(self) -> dict[str, Any]:
         with self._lock:
-            if self._process is not None and self._process.poll() is None:
+            if self.status()["running"]:
                 raise OperatorError("The configured node is already running")
             operator_state = get_state()
             if not operator_state["authenticated"]:
@@ -132,32 +179,63 @@ class NodeProcessManager:
     def stop(self) -> dict[str, Any]:
         with self._lock:
             process = self._process
-        if process is None or process.poll() is not None:
+            persisted_pid = self._persisted_pid()
+        if process is not None and process.poll() is None:
+            self._append_log("AthenaSS Operator (A77) requested node shutdown.")
+            try:
+                if os.name == "nt" and hasattr(signal, "CTRL_BREAK_EVENT"):
+                    process.send_signal(signal.CTRL_BREAK_EVENT)
+                else:
+                    os.killpg(process.pid, signal.SIGTERM)
+                process.wait(timeout=15)
+            except (ProcessLookupError, subprocess.TimeoutExpired):
+                if process.poll() is None:
+                    if os.name == "nt":
+                        process.kill()
+                    else:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    process.wait(timeout=5)
+                self._stop_persisted_inference()
             return self.status()
 
-        self._append_log("AthenaSS Operator (A77) requested node shutdown.")
+        if persisted_pid is None:
+            self._stop_persisted_inference()
+            return self.status()
+
+        self._append_log(
+            "AthenaSS Operator (A77) found an existing node worker and "
+            "requested shutdown."
+        )
         try:
-            if os.name == "nt" and hasattr(signal, "CTRL_BREAK_EVENT"):
-                process.send_signal(signal.CTRL_BREAK_EVENT)
-            else:
-                os.killpg(process.pid, signal.SIGTERM)
-            process.wait(timeout=15)
-        except (ProcessLookupError, subprocess.TimeoutExpired):
-            if process.poll() is None:
-                if os.name == "nt":
-                    process.kill()
-                else:
-                    os.killpg(process.pid, signal.SIGKILL)
-                process.wait(timeout=5)
+            os.kill(persisted_pid, signal.SIGTERM)
+        except ProcessLookupError:
+            SERVE_PID_PATH.unlink(missing_ok=True)
+            self._stop_persisted_inference()
+            return self.status()
+
+        deadline = time.monotonic() + 15
+        while self._pid_alive(persisted_pid) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        if self._pid_alive(persisted_pid):
+            os.kill(persisted_pid, signal.SIGKILL)
+            self._stop_persisted_inference()
+        SERVE_PID_PATH.unlink(missing_ok=True)
         return self.status()
 
     def status(self) -> dict[str, Any]:
         with self._lock:
             process = self._process
-            running = process is not None and process.poll() is None
+            if process is not None and process.poll() is None:
+                running_pid = process.pid
+            else:
+                running_pid = self._persisted_pid()
+                if running_pid is None:
+                    running_pid = self._persisted_pid(
+                        SERVE_PID_PATH.with_name("inference.pid")
+                    )
             return {
-                "running": running,
-                "pid": process.pid if running and process is not None else None,
+                "running": running_pid is not None,
+                "pid": running_pid,
                 "last_exit_code": self._last_exit_code,
             }
 
