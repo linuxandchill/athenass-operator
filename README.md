@@ -37,7 +37,7 @@ See the [official uv installation guide](https://docs.astral.sh/uv/getting-start
 Run this single command:
 
 ```bash
-uvx --from git+https://github.com/linuxandchill/athenass-cli athenass-operator
+uvx --from git+https://github.com/linuxandchill/athenass-operator athenass-operator
 ```
 
 The first run downloads AthenaSS Operator, its runtime, and its dependencies into an isolated cache. The browser interface then opens automatically at:
@@ -55,7 +55,7 @@ Use the same `uvx` command whenever you want to run AthenaSS Operator again. Lat
 Instead of using the longer `uvx` command each time:
 
 ```bash
-uv tool install git+https://github.com/linuxandchill/athenass-cli
+uv tool install git+https://github.com/linuxandchill/athenass-operator
 athenass-operator
 ```
 
