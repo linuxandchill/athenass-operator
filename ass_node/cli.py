@@ -926,7 +926,8 @@ class _UsageProxyHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def _stream_event_source(self, resp: Any) -> dict[str, Any] | None:
-        usage_data = None
+        report_data: dict[str, Any] = {}
+        saw_event = False
         transferred = 0
         for line in resp:
             transferred += len(line)
@@ -947,9 +948,33 @@ class _UsageProxyHandler(http.server.BaseHTTPRequestHandler):
                 data = json.loads(payload)
             except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
-            if data.get("usage"):
-                usage_data = data
-        return usage_data
+            saw_event = True
+            if data.get("model") and not report_data.get("model"):
+                report_data["model"] = data["model"]
+
+            usage = data.get("usage")
+            if not isinstance(usage, dict) or not usage:
+                continue
+            current_usage = report_data.get("usage")
+            current_total = (
+                current_usage.get("total_tokens")
+                if isinstance(current_usage, dict)
+                else None
+            )
+            candidate_total = usage.get("total_tokens")
+            if (
+                not isinstance(current_usage, dict)
+                or (
+                    type(candidate_total) in (int, float)
+                    and (
+                        type(current_total) not in (int, float)
+                        or candidate_total > current_total
+                    )
+                )
+            ):
+                report_data["usage"] = usage
+
+        return report_data if saw_event else None
 
 
 def _report_usage(resp_body: bytes, status_code: int, token: str) -> None:
@@ -963,7 +988,9 @@ def _report_usage(resp_body: bytes, status_code: int, token: str) -> None:
 
 def _report_usage_data(data: dict[str, Any], status_code: int, token: str) -> None:
     """Best-effort: report parsed usage to AthenaSS (A77)."""
-    usage = data.get("usage") or {}
+    usage = data.get("usage")
+    if not isinstance(usage, dict):
+        usage = {}
     body = {
         "status_code": status_code,
         "model": data.get("model"),

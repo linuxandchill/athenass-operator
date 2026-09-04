@@ -1,4 +1,5 @@
 import http.server
+import io
 import json
 import queue
 import tempfile
@@ -321,6 +322,44 @@ class UsageProxyTests(unittest.TestCase):
             upstream.shutdown()
             upstream.server_close()
             upstream_thread.join(timeout=2)
+
+    def test_stream_usage_keeps_largest_cumulative_count(self) -> None:
+        handler = object.__new__(cli._UsageProxyHandler)
+        handler.wfile = io.BytesIO()
+        result = handler._stream_event_source(
+            [
+                b'data: {"model":"test-model","usage":{"prompt_tokens":53,'
+                b'"completion_tokens":550,"total_tokens":603}}\n\n',
+                b'data: {"usage":{"prompt_tokens":53,'
+                b'"completion_tokens":33,"total_tokens":86}}\n\n',
+                b"data: [DONE]\n\n",
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "model": "test-model",
+                "usage": {
+                    "prompt_tokens": 53,
+                    "completion_tokens": 550,
+                    "total_tokens": 603,
+                },
+            },
+        )
+
+    def test_stream_without_usage_still_produces_request_report(self) -> None:
+        handler = object.__new__(cli._UsageProxyHandler)
+        handler.wfile = io.BytesIO()
+        result = handler._stream_event_source(
+            [
+                b'data: {"model":"test-model",'
+                b'"choices":[{"delta":{"content":"hello"}}]}\n\n',
+                b"data: [DONE]\n\n",
+            ]
+        )
+
+        self.assertEqual(result, {"model": "test-model"})
 
     def test_validates_reservation_with_control_plane(self) -> None:
         received: queue.Queue[tuple[str | None, dict]] = queue.Queue()
