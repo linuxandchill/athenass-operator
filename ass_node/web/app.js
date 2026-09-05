@@ -4,6 +4,8 @@ const sessionToken = document.querySelector(
 let state = null;
 let loginTimer = null;
 let logCursor = 0;
+const MAX_LOG_LINES = 200;
+let logLines = [];
 let stopPending = false;
 let nodesRefreshing = false;
 
@@ -301,6 +303,7 @@ async function startNode() {
     try {
         element("logs").textContent = "Starting node…\n";
         logCursor = 0;
+        logLines = [];
         const runner = await api("/api/node/start", { method: "POST" });
         state.runner = runner;
         setRunState(true, "Starting");
@@ -353,9 +356,11 @@ async function refreshLogs() {
         const result = await api(`/api/node/logs?after=${logCursor}`);
         if (result.lines.length) {
             const output = element("logs");
-            if (logCursor === 0) output.textContent = "";
-            for (const entry of result.lines)
-                output.textContent += `${entry.line}\n`;
+            if (logCursor === 0) logLines = [];
+            logLines = logLines
+                .concat(result.lines.slice(-MAX_LOG_LINES).map((entry) => entry.line))
+                .slice(-MAX_LOG_LINES);
+            output.textContent = `${logLines.join("\n")}\n`;
             output.scrollTop = output.scrollHeight;
             logCursor = result.cursor;
         }

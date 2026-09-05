@@ -70,7 +70,7 @@ AthenaSS Operator does not install an inference engine, models, GPU drivers, or 
 - AthenaSS sign-in
 - Node registration and management
 - Start and stop controls
-- Live inference logs
+- Live inference logs: the interface shows the latest 200 lines; the operator keeps a rolling 2,000-line buffer in memory, not on disk or in Supabase. The buffer clears when a new node worker starts or the operator exits. Your inference engine may maintain its own separate log files.
 - Registered-node listing
 
 Engine adapters are intentionally unnecessary: AthenaSS Operator runs the command exactly as entered and verifies the common `GET /v1/models` contract. The command runs under your local user account, so only enter commands you trust. The command is also public node metadata; never include API keys, tokens, passwords, or other secrets.
