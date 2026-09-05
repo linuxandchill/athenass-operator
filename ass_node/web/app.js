@@ -4,6 +4,8 @@ const sessionToken = document.querySelector(
 let state = null;
 let loginTimer = null;
 let logCursor = 0;
+let stopPending = false;
+let nodesRefreshing = false;
 
 const element = (id) => {
     const found = document.getElementById(id);
@@ -19,12 +21,15 @@ async function api(path, options = {}) {
     if (options.body) headers["Content-Type"] = "application/json";
     const response = await fetch(path, { ...options, headers });
     const result = await response.json();
-    if (!response.ok)
-        throw new Error(
+    if (!response.ok) {
+        const error = new Error(
             result.error ||
                 result.detail ||
                 `Request failed (${response.status})`,
         );
+        error.code = result.code;
+        throw error;
+    }
     return result;
 }
 
@@ -38,7 +43,7 @@ function showNotice(message, kind = "ok") {
 function setRunState(running, label = running ? "Online" : "Idle") {
     element("start-button").disabled =
         running || !state?.configured || !state?.authenticated;
-    element("stop-button").disabled = !running;
+    element("stop-button").disabled = !running || stopPending;
     const status = element("node-status");
     const indicator = document.createElement("i");
     status.className = `status ${running ? "running" : "idle"}`;
@@ -219,12 +224,14 @@ async function registerNode(event) {
 }
 
 async function refreshNodes() {
+    if (nodesRefreshing) return;
+    nodesRefreshing = true;
     const list = element("node-list");
     if (!state?.authenticated) {
         list.textContent = "Sign in to load registered nodes.";
+        nodesRefreshing = false;
         return;
     }
-    list.textContent = "Loading nodes…";
     try {
         const result = await api("/api/nodes");
         if (!result.nodes.length) {
@@ -243,7 +250,13 @@ async function refreshNodes() {
             name.textContent = node.name || "Unnamed";
             model.textContent = node.model_id || "No model";
             status.className = "node-state";
-            status.textContent = node.status || "unknown";
+            status.textContent = {
+                healthy: "Healthy",
+                in_use: "In Use",
+                offline: "Offline",
+            }[node.effective_status] || (
+                node.status === "offline" ? "Offline" : "Status unknown"
+            );
             deleteButton.type = "button";
             deleteButton.className = "delete-node";
             deleteButton.textContent = "Delete";
@@ -257,6 +270,8 @@ async function refreshNodes() {
     } catch (error) {
         list.className = "node-list error-text";
         list.textContent = error.message || String(error);
+    } finally {
+        nodesRefreshing = false;
     }
 }
 
@@ -295,13 +310,41 @@ async function startNode() {
 }
 
 async function stopNode() {
+    if (stopPending) return;
+    stopPending = true;
     element("stop-button").disabled = true;
     try {
-        const runner = await api("/api/node/stop", { method: "POST" });
+        let runner;
+        try {
+            runner = await api("/api/node/stop", {
+                method: "POST",
+                body: JSON.stringify({ force: false }),
+            });
+        } catch (error) {
+            if (!["node_in_use", "reservation_unknown"].includes(error.code))
+                throw error;
+            const dialog = element("stop-warning");
+            element("stop-warning-text").textContent = error.message;
+            dialog.returnValue = "cancel";
+            const confirmed = new Promise((resolve) =>
+                dialog.addEventListener("close", () =>
+                    resolve(dialog.returnValue === "stop"), { once: true }),
+            );
+            dialog.showModal();
+            element("keep-running").focus();
+            if (!(await confirmed)) return;
+            runner = await api("/api/node/stop", {
+                method: "POST",
+                body: JSON.stringify({ force: true }),
+            });
+        }
         state.runner = runner;
-        setRunState(runner.running, runner.running ? "Stopping" : "Idle");
+        await refreshNodes();
     } catch (error) {
         showNotice(error.message || String(error), "error");
+    } finally {
+        stopPending = false;
+        setRunState(Boolean(state?.runner?.running));
     }
 }
 
@@ -335,4 +378,5 @@ window.addEventListener("DOMContentLoaded", () => {
         showNotice(error.message || String(error), "error"),
     );
     window.setInterval(refreshLogs, 1000);
+    window.setInterval(refreshNodes, 10000);
 });

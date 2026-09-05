@@ -93,6 +93,20 @@ Everything needed for normal operation is available in the browser:
 
 The separate command interface is an internal implementation detail. Operators do not need to invoke it.
 
+### Node health and reservations
+
+The registered-node list refreshes every 10 seconds:
+
+- **Healthy**: the node has a recent online heartbeat and no active reservation.
+- **In Use**: the node is healthy and has an active, unexpired reservation.
+- **Offline**: the node is offline or its heartbeat is stale.
+
+**Stop** checks the current reservation state before shutting down. If the node is reserved, a warning offers **Keep running** (the default) or **Stop anyway**. Stopping anyway interrupts the renter's reservation and requests. If reservation status cannot be checked, the Operator warns instead of assuming the node is free.
+
+The warning is a point-in-time check, not an atomic block on new reservations. Ctrl+C and deletion are separate shutdown paths and do not use this Stop confirmation.
+
+This feature requires the updated AthenaSS API `GET /v1/cli/nodes` response (`effective_status` and `reserved`). With an older API, online entries display **Status unknown** and Stop requires confirmation. The API restricts the lookup to the authenticated user's nodes and returns no renter details. No database credentials, schema changes, or RLS grants are needed in the Operator.
+
 Machine details are required, seller-reported JSON metadata. Renters see each top-level field separately; the values are not automatically detected or independently verified.
 
 ## Local state

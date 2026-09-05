@@ -34,6 +34,42 @@ class FakeNodeWorker:
 
 
 class LocalhostOperatorWebTests(unittest.TestCase):
+    def test_stop_requires_confirmation_for_reserved_or_unknown_node(self) -> None:
+        for reserved in (True, None):
+            with (
+                self.subTest(reserved=reserved),
+                patch.object(webapp.process_manager, "status", return_value={"running": True}),
+                patch.object(webapp.process_manager, "stop") as stop,
+                patch.object(webapp, "get_state", return_value={"node": {"id": "owned"}}),
+                patch.object(webapp, "list_nodes", return_value=[{"id": "owned", "reserved": reserved}]),
+            ):
+                response = webapp.node_stop(webapp.NodeStopRequest())
+                self.assertEqual(response.status_code, 409)
+                stop.assert_not_called()
+
+    def test_stop_checks_current_node_not_another_owned_node(self) -> None:
+        with (
+            patch.object(webapp.process_manager, "status", return_value={"running": True}),
+            patch.object(webapp.process_manager, "stop", return_value={"running": False}),
+            patch.object(webapp, "get_state", return_value={"node": {"id": "local"}}),
+            patch.object(webapp, "list_nodes", return_value=[
+                {"id": "other", "reserved": True}, {"id": "local", "reserved": False},
+            ]),
+        ):
+            self.assertFalse(webapp.node_stop(webapp.NodeStopRequest())["running"])
+
+    def test_stop_lookup_failure_requires_confirmation_but_force_can_stop(self) -> None:
+        with (
+            patch.object(webapp.process_manager, "status", return_value={"running": True}),
+            patch.object(webapp.process_manager, "stop", return_value={"running": False}) as stop,
+            patch.object(webapp, "get_state", return_value={"node": {"id": "owned"}}),
+            patch.object(webapp, "list_nodes", side_effect=webapp.OperatorError("unreachable")),
+        ):
+            response = webapp.node_stop(webapp.NodeStopRequest())
+            self.assertEqual(json.loads(response.body)["code"], "reservation_unknown")
+            stop.assert_not_called()
+            self.assertFalse(webapp.node_stop(webapp.NodeStopRequest(force=True))["running"])
+
     def test_process_manager_launches_isolated_worker_and_stops_group(self) -> None:
         worker = FakeNodeWorker()
         manager = webapp.NodeProcessManager()

@@ -65,6 +65,15 @@
       </section>
     </main>
 
+    <dialog id="stop-warning" aria-labelledby="stop-warning-title" aria-describedby="stop-warning-text">
+      <h2 id="stop-warning-title">Stop this node?</h2>
+      <p id="stop-warning-text"></p>
+      <form method="dialog" class="actions">
+        <button id="keep-running" value="cancel" autofocus>Keep running</button>
+        <button class="danger" value="stop">Stop anyway</button>
+      </form>
+    </dialog>
+
     <p id="notice" class="notice hidden" role="status"></p>
   </body>
 </html>

@@ -69,6 +69,10 @@ class NodeDeleteRequest(BaseModel):
     name: str
 
 
+class NodeStopRequest(BaseModel):
+    force: bool = False
+
+
 class NodeProcessManager:
     """Tracks the node worker process and its bounded local log stream."""
 
@@ -411,7 +415,31 @@ def node_start() -> Any:
 
 
 @app.post("/api/node/stop", dependencies=[Depends(_require_session)])
-def node_stop() -> dict[str, Any]:
+def node_stop(request: NodeStopRequest) -> Any:
+    if process_manager.status()["running"] and not request.force:
+        try:
+            current = get_state().get("node") or {}
+            owned_node = next(
+                (node for node in list_nodes() if node.get("id") == current.get("id")),
+                None,
+            )
+            reserved = owned_node.get("reserved") if owned_node else None
+        except OperatorError:
+            reserved = None
+        if reserved is not False:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "code": "node_in_use" if reserved is True else "reservation_unknown",
+                    "error": (
+                        "This node is In Use. Stopping now will interrupt the renter's "
+                        "reservation and any requests in progress."
+                        if reserved is True
+                        else "Reservation status could not be verified. Stopping now "
+                        "may interrupt a renter's reservation and requests."
+                    ),
+                },
+            )
     return process_manager.stop()
 
 
