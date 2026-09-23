@@ -135,12 +135,12 @@ class NodeProcessManager:
     def start(self) -> dict[str, Any]:
         with self._lock:
             if self.status()["running"]:
-                raise OperatorError("The configured node is already running")
+                raise OperatorError("The configured Endpoint is already running")
             operator_state = get_state()
             if not operator_state["authenticated"]:
-                raise OperatorError("Sign in before starting the node")
+                raise OperatorError("Sign in before starting the Endpoint")
             if not operator_state["configured"]:
-                raise OperatorError("Register a node before starting it")
+                raise OperatorError("Register an Endpoint before starting it")
 
             creation: dict[str, Any] = {}
             if os.name == "nt":
@@ -160,7 +160,7 @@ class NodeProcessManager:
             self._logs.clear()
             self._next_log_id = 1
 
-        self._append_log("AthenaSS Operator (A77) started the node worker.")
+        self._append_log("AthenaSS Operator (A77) started the Endpoint worker.")
         threading.Thread(
             target=self._capture_output,
             args=(process,),
@@ -178,14 +178,14 @@ class NodeProcessManager:
             self._last_exit_code = exit_code
             if self._process is process:
                 self._process = None
-        self._append_log(f"Node worker exited with status {exit_code}.")
+        self._append_log(f"Endpoint worker exited with status {exit_code}.")
 
     def stop(self) -> dict[str, Any]:
         with self._lock:
             process = self._process
             persisted_pid = self._persisted_pid()
         if process is not None and process.poll() is None:
-            self._append_log("AthenaSS Operator (A77) requested node shutdown.")
+            self._append_log("AthenaSS Operator (A77) requested Endpoint shutdown.")
             try:
                 if os.name == "nt" and hasattr(signal, "CTRL_BREAK_EVENT"):
                     process.send_signal(signal.CTRL_BREAK_EVENT)
@@ -207,7 +207,7 @@ class NodeProcessManager:
             return self.status()
 
         self._append_log(
-            "AthenaSS Operator (A77) found an existing node worker and "
+            "AthenaSS Operator (A77) found an existing Endpoint worker and "
             "requested shutdown."
         )
         try:
@@ -375,7 +375,7 @@ def node_register(request: RegisterRequest) -> Any:
 def node_update(request: UpdateNodeRequest) -> Any:
     try:
         if process_manager.status()["running"]:
-            raise OperatorError("Stop the node before editing its configuration")
+            raise OperatorError("Stop the Endpoint before editing its configuration")
         return update_node(
             request.node_id,
             request.name,
@@ -432,7 +432,7 @@ def node_stop(request: NodeStopRequest) -> Any:
                 content={
                     "code": "node_in_use" if reserved is True else "reservation_unknown",
                     "error": (
-                        "This node is In Use. Stopping now will interrupt the renter's "
+                        "This Endpoint is In Use. Stopping now will interrupt the renter's "
                         "reservation and any requests in progress."
                         if reserved is True
                         else "Reservation status could not be verified. Stopping now "

@@ -155,9 +155,9 @@ def register_node(
 ) -> dict[str, Any]:
     credentials = _read_json(CREDENTIALS_PATH)
     if not credentials or not credentials.get("access_token"):
-        raise OperatorError("Sign in before registering a node")
+        raise OperatorError("Sign in before registering an Endpoint")
     if not name.strip() or not model_id.strip() or not command.strip():
-        raise OperatorError("Node name, model, and launch command are required")
+        raise OperatorError("Endpoint name, model, and launch command are required")
     if not 1 <= port <= 65535:
         raise OperatorError("Port must be between 1 and 65535")
     if machine_info is not None and not isinstance(machine_info, dict):
@@ -210,11 +210,11 @@ def update_node(
     credentials = _read_json(CREDENTIALS_PATH)
     config = _read_json(CONFIG_PATH)
     if not credentials or not credentials.get("access_token"):
-        raise OperatorError("Sign in before editing a node")
+        raise OperatorError("Sign in before editing an Endpoint")
     if not config or config.get("node_id") != node_id:
-        raise OperatorError("Only the node configured on this machine can be edited")
+        raise OperatorError("Only the Endpoint configured on this machine can be edited")
     if not name.strip() or not model_id.strip() or not command.strip():
-        raise OperatorError("Node name, model, and launch command are required")
+        raise OperatorError("Endpoint name, model, and launch command are required")
     if not 1 <= port <= 65535:
         raise OperatorError("Port must be between 1 and 65535")
     if machine_info is not None and not isinstance(machine_info, dict):
@@ -252,9 +252,9 @@ def update_node(
         except OperatorError as exc:
             if exc.status_code == 404:
                 raise OperatorError(
-                    "Renaming nodes requires the latest AthenaSS API deployment. "
+                    "Renaming Endpoints requires the latest AthenaSS API deployment. "
                     "Setup details and other configuration can still be saved "
-                    "without changing the node name."
+                    "without changing the Endpoint name."
                 ) from exc
             raise
     config.update(
@@ -273,13 +273,13 @@ def update_node(
 def list_nodes() -> list[dict[str, Any]]:
     credentials = _read_json(CREDENTIALS_PATH)
     if not credentials or not credentials.get("access_token"):
-        raise OperatorError("Sign in before listing nodes")
+        raise OperatorError("Sign in before listing Endpoints")
     result = _request_json(
         "GET", "/v1/cli/nodes", bearer=credentials["access_token"]
     )
     nodes = result.get("nodes", [])
     if not isinstance(nodes, list):
-        raise OperatorError("AthenaSS (A77) returned an invalid node list")
+        raise OperatorError("AthenaSS (A77) returned an invalid Endpoint list")
     return [
         node
         for node in nodes
@@ -290,10 +290,10 @@ def list_nodes() -> list[dict[str, Any]]:
 def delete_node(name: str) -> dict[str, Any]:
     credentials = _read_json(CREDENTIALS_PATH)
     if not credentials or not credentials.get("access_token"):
-        raise OperatorError("Sign in before deleting a node")
+        raise OperatorError("Sign in before deleting an Endpoint")
     node_name = name.strip()
     if not node_name:
-        raise OperatorError("Missing node name")
+        raise OperatorError("Missing Endpoint name")
 
     result = _request_json(
         "POST",
@@ -307,6 +307,6 @@ def delete_node(name: str) -> dict[str, Any]:
             CONFIG_PATH.unlink(missing_ok=True)
         except OSError as exc:
             raise OperatorError(
-                f"Node deleted, but its local configuration could not be removed: {exc}"
+                f"Endpoint deleted, but its local configuration could not be removed: {exc}"
             ) from exc
     return result

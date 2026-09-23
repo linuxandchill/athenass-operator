@@ -29,10 +29,10 @@
 
       <section class="card">
         <div class="heading">
-          <div><p class="step">2 · NODE</p><h2>Configure this machine</h2></div>
+          <div><p class="step">2 · ENDPOINT</p><h2>Configure this machine</h2></div>
         </div>
         <form id="node-form">
-          <label>Node name<input id="node-name" required placeholder="home-gpu" autocomplete="off" /></label>
+          <label>Endpoint name<input id="node-name" required placeholder="home-gpu" autocomplete="off" /></label>
           <label>Model ID<input id="model-id" required placeholder="Qwen/Qwen3-8B" autocomplete="off" /></label>
           <label>Port<input id="port" required type="number" min="1" max="65535" value="8000" /></label>
           <label class="wide">Launch command<textarea id="command" required rows="3" placeholder="vllm serve Qwen/Qwen3-8B --host 127.0.0.1 --port 8000"></textarea></label>
@@ -41,18 +41,18 @@
             <span class="field-help">Required · shown to renters. Enter one valid JSON object with any fields useful for comparing this machine and its inference setup.</span>
             <textarea id="machine-details" maxlength="16000" rows="8" required spellcheck="false" placeholder='{"gpu":"RTX 4090 24 GB","cpu":"Intel Core i9-14900K","memory":"64 GB","operating_system":"Ubuntu 24.04","engine":"ExLlamaV3","context":"190K"}'></textarea>
           </label>
-          <button id="register-button" type="submit">Register node</button>
+          <button id="register-button" type="submit">Register Endpoint</button>
         </form>
       </section>
 
       <section class="card">
         <div class="heading">
-          <div><p class="step">3 · SERVICE</p><h2>Run this node</h2></div>
+          <div><p class="step">3 · SERVICE</p><h2>Run this Endpoint</h2></div>
           <span id="node-status" class="status idle"><i></i> Idle</span>
         </div>
-        <div id="configured-node" class="configured muted">No node configured locally.</div>
+        <div id="configured-node" class="configured muted">No Endpoint configured locally.</div>
         <div class="actions">
-          <button id="start-button" disabled>Start node</button>
+          <button id="start-button" disabled>Start Endpoint</button>
           <button id="stop-button" class="danger" disabled>Stop</button>
           <button id="refresh-button" class="secondary">Refresh list</button>
         </div>
@@ -61,13 +61,13 @@
       </section>
 
       <section class="card">
-        <div class="heading"><div><p class="step">AthenaSS SERVICE</p><h2>Registered nodes</h2></div></div>
-        <div id="node-list" class="node-list muted">Sign in to load registered nodes.</div>
+        <div class="heading"><div><p class="step">AthenaSS SERVICE</p><h2>Registered Endpoints</h2></div></div>
+        <div id="node-list" class="node-list muted">Sign in to load registered Endpoints.</div>
       </section>
     </main>
 
     <dialog id="stop-warning" aria-labelledby="stop-warning-title" aria-describedby="stop-warning-text">
-      <h2 id="stop-warning-title">Stop this node?</h2>
+      <h2 id="stop-warning-title">Stop this Endpoint?</h2>
       <p id="stop-warning-text"></p>
       <form method="dialog" class="actions">
         <button id="keep-running" value="cancel" autofocus>Keep running</button>

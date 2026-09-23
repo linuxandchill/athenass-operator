@@ -444,7 +444,7 @@ def serve(
             existing_pid = None
         if existing_pid and _pid_alive(existing_pid):
             typer.echo(
-                f"A node is already running (pid {existing_pid}). Use Stop in AthenaSS Operator.",
+                f"An Endpoint is already running (pid {existing_pid}). Use Stop in AthenaSS Operator.",
                 err=True,
             )
             raise typer.Exit(1)
@@ -464,7 +464,7 @@ def serve(
     node_id = cfg.get("node_id")
     if not token or not node_id:
         typer.echo(
-            "Missing node credentials. Register the node again in AthenaSS Operator.",
+            "Missing Endpoint credentials. Register the Endpoint again in AthenaSS Operator.",
             err=True,
         )
         raise typer.Exit(1)
@@ -473,7 +473,7 @@ def serve(
     connectivity_cfg = cfg.get("connectivity")
     if not isinstance(connectivity_cfg, dict):
         typer.echo(
-            "Missing connectivity configuration. Register the node again in AthenaSS Operator.",
+            "Missing connectivity configuration. Register the Endpoint again in AthenaSS Operator.",
             err=True,
         )
         raise typer.Exit(1)
@@ -492,7 +492,7 @@ def serve(
     typer.echo(f"Command:  {command}")
     typer.echo(f"Model:    {cfg.get('model_id', 'unknown')}")
     typer.echo(f"Endpoint: {endpoint}")
-    typer.echo(f"Node ID:  {node_id}")
+    typer.echo(f"Endpoint ID: {node_id}")
 
     signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
     if hasattr(signal, "SIGBREAK"):
@@ -543,7 +543,7 @@ def serve(
     except KeyboardInterrupt:
         typer.echo("\nShutting down...")
     finally:
-        typer.echo("Marking node offline...")
+        typer.echo("Marking Endpoint offline...")
         try:
             _heartbeat(token, cfg, status="offline")
         finally:

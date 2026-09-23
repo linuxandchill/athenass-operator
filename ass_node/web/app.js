@@ -64,14 +64,14 @@ function renderState() {
     const saveButton = element("register-button");
     saveButton.disabled = !authenticated || running;
     saveButton.textContent = state?.node
-        ? "Save node changes"
-        : "Register node";
+        ? "Save Endpoint changes"
+        : "Register Endpoint";
     setRunState(running);
 
     const configured = element("configured-node");
     if (!state?.node) {
         configured.className = "configured muted";
-        configured.textContent = "No node configured locally.";
+        configured.textContent = "No Endpoint configured locally.";
         return;
     }
 
@@ -80,7 +80,7 @@ function renderState() {
     const model = document.createElement("span");
     const endpoint = document.createElement("span");
     const publicEndpoint = document.createElement("span");
-    name.textContent = state.node.name || "Unnamed node";
+    name.textContent = state.node.name || "Unnamed Endpoint";
     model.textContent = state.node.model_id || "Unknown model";
     endpoint.textContent = state.node.endpoint || "No local endpoint";
     publicEndpoint.textContent =
@@ -172,7 +172,7 @@ async function signOut() {
         state.runner = runner;
         renderState();
         await refreshNodes();
-        showNotice("Signed out. Local node configuration was kept.");
+        showNotice("Signed out. Local Endpoint configuration was kept.");
     } catch (error) {
         renderState();
         showNotice(error.message || String(error), "error");
@@ -215,8 +215,8 @@ async function registerNode(event) {
         await refreshNodes();
         showNotice(
             editing
-                ? "Node details updated."
-                : "Node registered and connectivity provisioned.",
+                ? "Endpoint details updated."
+                : "Endpoint registered and connectivity provisioned.",
         );
     } catch (error) {
         showNotice(error.message || String(error), "error");
@@ -230,7 +230,7 @@ async function refreshNodes() {
     nodesRefreshing = true;
     const list = element("node-list");
     if (!state?.authenticated) {
-        list.textContent = "Sign in to load registered nodes.";
+        list.textContent = "Sign in to load registered Endpoints.";
         nodesRefreshing = false;
         return;
     }
@@ -238,7 +238,7 @@ async function refreshNodes() {
         const result = await api("/api/nodes");
         if (!result.nodes.length) {
             list.className = "node-list muted";
-            list.textContent = "No nodes registered.";
+            list.textContent = "No Endpoints registered.";
             return;
         }
         list.className = "node-list";
@@ -279,7 +279,7 @@ async function refreshNodes() {
 
 async function deleteNode(name, button) {
     const confirmed = window.confirm(
-        `Delete node "${name}"? It will disappear from node lists. Historical usage records are kept.`,
+        `Delete Endpoint "${name}"? It will disappear from Endpoint lists. Historical usage records are kept.`,
     );
     if (!confirmed) return;
 
@@ -291,7 +291,7 @@ async function deleteNode(name, button) {
             body: JSON.stringify({ name }),
         });
         await refreshState();
-        showNotice(`Node "${name}" deleted.`);
+        showNotice(`Endpoint "${name}" deleted.`);
     } catch (error) {
         button.disabled = false;
         button.textContent = "Delete";
@@ -301,7 +301,7 @@ async function deleteNode(name, button) {
 
 async function startNode() {
     try {
-        element("logs").textContent = "Starting node…\n";
+        element("logs").textContent = "Starting Endpoint…\n";
         logCursor = 0;
         logLines = [];
         const runner = await api("/api/node/start", { method: "POST" });
